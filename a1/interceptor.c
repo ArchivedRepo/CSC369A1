@@ -371,7 +371,7 @@ int check_caller(int cmd, int syscall, int pid){
  *        system call has not been intercepted yet.
  */
 
-check_context(int cmd, int syscall, int pid){
+int check_context(int cmd, int syscall, int pid){
 
 	// if de-intercept a syscall not intercepted
 	if(cmd == REQUEST_SYSCALL_RELEASE && table[syscall].intercepted == 0){
@@ -385,7 +385,8 @@ check_context(int cmd, int syscall, int pid){
 		}
 
 		// if pid is not being monitored
-		int monitored = table[syscall].monitored;
+		int monitored;
+		monitored = table[syscall].monitored;
 		if(monitored == 0){
 			return -EINVAL;
 		}else if(monitored == 1){
@@ -614,7 +615,8 @@ static int init_function(void) {
 	spin_unlock(&sys_call_table_lock);
 
 	spin_lock(&my_table_lock);
-	int i =0;
+	int i
+	i =0;
 	for(i=0; i < NR_syscalls; i++ ){
 		INIT_LIST_HEAD(&table[i].my_list);
 		table[i].intercepted = 0;
@@ -639,7 +641,8 @@ static int init_function(void) {
 static void exit_function(void)
 {
 	spin_lock(&my_table_lock);
-	int i=0;
+	int i;
+	i=0;
 	for(i = 0; i < NR_syscalls; i++){
 		my_syscall(REQUEST_SYSCALL_RELEASE, i, 0);
 	}
