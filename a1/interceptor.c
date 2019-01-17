@@ -298,6 +298,138 @@ asmlinkage long interceptor(struct pt_regs reg) {
 	// return 0; // Just a placeholder, so it compiles with no warnings!
 }
 
+
+
+/* - For each of the commands, check that the arguments are valid (-EINVAL):
+ *   a) the syscall must be valid (not negative, not > NR_syscalls-1, and not MY_CUSTOM_SYSCALL itself)
+ *   b) the pid must be valid for the last two commands. It cannot be a negative integer, 
+ *      and it must be an existing pid (except for the case when it's 0, indicating that we want 
+ *      to start/stop monitoring for "all pids"). 
+ */
+
+int check_param(int cmd, int syscall, int pid){
+
+	// check cmd
+	if(cmd != REQUEST_START_MONITORING && cmd != REQUEST_STOP_MONITORING && cmd != REQUEST_SYSCALL_INTERCEPT && cmd != REQUEST_SYSCALL_RELEASE){
+		return -EINVAL;
+	}
+
+	// check syscall
+	if(syscall < 0 || syscall > NR_syscalls - 1 || syscall == MY_CUSTOM_SYSCALL){
+		return -EINVAL;
+	}
+
+	// check pid
+	if(cmd == REQUEST_START_MONITORING || cmd == REQUEST_STOP_MONITORING ){
+		if(pid < 0){
+			return -EINVAL;
+		} else if(pid > 0 && pid_task(find_vpid(pid), PIDTYPE_PID)== NULL){
+			return -EINVAL;
+		}
+	}
+	
+	return 0;
+}
+
+ /* - Check that the caller has the right permissions (-EPERM)
+ *      For the first two commands, we must be root (see the current_uid() macro).
+ *      For the last two commands, the following logic applies:
+ *        - is the calling process root? if so, all is good, no doubts about permissions.
+ *        - if not, then check if the 'pid' requested is owned by the calling process 
+ *        - also, if 'pid' is 0 and the calling process is not root, then access is denied
+ */
+
+int check_caller(int cmd, int syscall, int pid){
+
+	int cuid = current_uid();
+
+	// check for the first two commands
+	if(cmd == REQUEST_SYSCALL_INTERCEPT || cmd == REQUEST_SYSCALL_RELEASE){
+		if(cuid != 0){
+			return -EPERM;
+		}
+	// check for the last two commands
+	}else{
+		if(cuid != 0){
+			// deny the access to all processes
+			if(pid == 0){
+				return -EPERM;
+			// check ownership
+			}else{
+				return check_pids_same_owner(cuid, pid); 
+			}
+		}
+
+	}
+	return 0;
+}
+
+
+/* - Check for correct context of commands (-EINVAL):
+ *     a) Cannot de-intercept a system call that has not been intercepted yet.
+ *     b) Cannot stop monitoring for a pid that is not being monitored, or if the 
+ *        system call has not been intercepted yet.
+ */
+
+check_context(int cmd, int syscall, int pid){
+
+	// if de-intercept a syscall not intercepted
+	if(cmd == REQUEST_SYSCALL_RELEASE && table[syscall].intercepted == 0){
+		return -EINVAL;
+	}
+	
+	if(cmd == REQUEST_STOP_MONITORING){
+		// if stop monitoring a pid while syscall not intercepted
+		if(table[syscall].intercepted == 0){
+			return -EINVAL;
+		}
+
+		// if pid is not being monitored
+		int monitored = table[syscall].monitored;
+		if(monitored == 0){
+			return -EINVAL;
+		}else if(monitored == 1){
+			// pid not in the normal list
+			if(check_pid_monitored(syscall, pid) == 0){
+				return -EINVAL;
+			} 
+		}else{
+			// or pid is in the blacklist
+			if(check_pid_monitored(syscall, pid) == 1){
+				return -EINVAL;
+			}
+		}
+	}
+	return 0;
+}
+
+
+ /* - Check for -EBUSY conditions:
+ *     a) If intercepting a system call that is already intercepted.
+ *     b) If monitoring a pid that is already being monitored.
+ */
+
+int check_busy(int cmd, int syscall, int pid){
+
+	// if intercept a syscall already intercepted
+	if(cmd == REQUEST_SYSCALL_INTERCEPT && table[syscall].intercepted == 1){
+		return -EBUSY;
+	}
+
+	// if monitor a pid already being monitored
+	if(cmd == REQUEST_START_MONITORING){
+		int monitored = table[syscall].monitored;
+		// pid not in blacklist
+		if(monitored == 2 && check_pid_monitored(syscall, pid) == 0){
+			return -EBUSY;
+		}
+		// or pid in normal list 
+		if (monitored == 1 && check_pid_monitored(syscall, pid) == 1){
+			return -EBUSY;
+		}
+	}
+	return 0;
+}
 /**
  * My system call - this function is called whenever a user issues a MY_CUSTOM_SYSCALL system call.
  * When that happens, the parameters for this system call indicate one of 4 actions/commands:
@@ -444,138 +576,6 @@ asmlinkage long my_syscall(int cmd, int syscall, int pid) {
 		}
 	}
 
-	return 0;
-}
-
-
-/* - For each of the commands, check that the arguments are valid (-EINVAL):
- *   a) the syscall must be valid (not negative, not > NR_syscalls-1, and not MY_CUSTOM_SYSCALL itself)
- *   b) the pid must be valid for the last two commands. It cannot be a negative integer, 
- *      and it must be an existing pid (except for the case when it's 0, indicating that we want 
- *      to start/stop monitoring for "all pids"). 
- */
-
-int check_param(int cmd, int syscall, int pid){
-
-	// check cmd
-	if(cmd != REQUEST_START_MONITORING && cmd != REQUEST_STOP_MONITORING && cmd != REQUEST_SYSCALL_INTERCEPT && cmd != REQUEST_SYSCALL_RELEASE){
-		return -EINVAL;
-	}
-
-	// check syscall
-	if(syscall < 0 || syscall > NR_syscalls - 1 || syscall == MY_CUSTOM_SYSCALL){
-		return -EINVAL;
-	}
-
-	// check pid
-	if(cmd == REQUEST_START_MONITORING || cmd == REQUEST_STOP_MONITORING ){
-		if(pid < 0){
-			return -EINVAL;
-		} else if(pid > 0 && pid_task(find_vpid(pid), PIDTYPE_PID)== NULL){
-			return -EINVAL;
-		}
-	}
-	
-	return 0;
-}
-
- /* - Check that the caller has the right permissions (-EPERM)
- *      For the first two commands, we must be root (see the current_uid() macro).
- *      For the last two commands, the following logic applies:
- *        - is the calling process root? if so, all is good, no doubts about permissions.
- *        - if not, then check if the 'pid' requested is owned by the calling process 
- *        - also, if 'pid' is 0 and the calling process is not root, then access is denied
- */
-
-int check_caller(int cmd, int syscall, int pid){
-
-	int cuid = current_uid();
-
-	// check for the first two commands
-	if(cmd == REQUEST_SYSCALL_INTERCEPT || cmd == REQUEST_SYSCALL_RELEASE){
-		if(cuid != 0){
-			return -EPERM;
-		}
-	// check for the last two commands
-	}else{
-		if(cuid != 0){
-			// deny the access to all processes
-			if(pid == 0){
-				return -EPERM;
-			// check ownership
-			}else{
-				return check_pids_same_owner(cuid, pid); 
-			}
-		}
-
-	}
-	return 0;
-}
-
-
-/* - Check for correct context of commands (-EINVAL):
- *     a) Cannot de-intercept a system call that has not been intercepted yet.
- *     b) Cannot stop monitoring for a pid that is not being monitored, or if the 
- *        system call has not been intercepted yet.
- */
-
-check_context(int cmd, int syscall, int pid){
-
-	// if de-intercept a syscall not intercepted
-	if(cmd == REQUEST_SYSCALL_RELEASE && table[syscall].intercepted == 0){
-		return -EINVAL;
-	}
-	
-	if(cmd == REQUEST_STOP_MONITORING){
-		// if stop monitoring a pid while syscall not intercepted
-		if(table[syscall].intercepted == 0){
-			return -EINVAL;
-		}
-
-		// if pid is not being monitored
-		int monitored = table[syscall].monitored;
-		if(monitored == 0){
-			return -EINVAL;
-		}else if(monitored == 1){
-			// pid not in the normal list
-			if(check_pid_monitored(syscall, pid) == 0){
-				return -EINVAL;
-			} 
-		}else{
-			// or pid is in the blacklist
-			if(check_pid_monitored(syscall, pid) == 1){
-				return -EINVAL;
-			}
-		}
-	}
-	return 0;
-}
-
-
- /* - Check for -EBUSY conditions:
- *     a) If intercepting a system call that is already intercepted.
- *     b) If monitoring a pid that is already being monitored.
- */
-
-int check_busy(int cmd, int syscall, int pid){
-
-	// if intercept a syscall already intercepted
-	if(cmd == REQUEST_SYSCALL_INTERCEPT && table[syscall].intercepted == 1){
-		return -EBUSY;
-	}
-
-	// if monitor a pid already being monitored
-	if(cmd == REQUEST_START_MONITORING){
-		int monitored = table[syscall].monitored;
-		// pid not in blacklist
-		if(monitored == 2 && check_pid_monitored(syscall, pid) == 0){
-			return -EBUSY;
-		}
-		// or pid in normal list 
-		if (monitored == 1 && check_pid_monitored(syscall, pid) == 1){
-			return -EBUSY;
-		}
-	}
 	return 0;
 }
 
