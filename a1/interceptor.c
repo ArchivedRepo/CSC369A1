@@ -614,7 +614,8 @@ static int init_function(void) {
 	spin_unlock(&sys_call_table_lock);
 
 	spin_lock(&my_table_lock);
-	for(int i=0; i < NR_syscalls; i++ ){
+	int i =0;
+	for(i=0; i < NR_syscalls; i++ ){
 		INIT_LIST_HEAD(&table[i].my_list);
 		table[i].intercepted = 0;
 		table[i].monitored = 0;
@@ -638,7 +639,8 @@ static int init_function(void) {
 static void exit_function(void)
 {
 	spin_lock(&my_table_lock);
-	for(int i = 0; i < NR_syscalls; i++){
+	int i=0;
+	for(i = 0; i < NR_syscalls; i++){
 		my_syscall(REQUEST_SYSCALL_RELEASE, i, 0);
 	}
 	spin_unlock(&my_table_lock);
