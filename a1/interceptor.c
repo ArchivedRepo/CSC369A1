@@ -258,6 +258,7 @@ asmlinkage long my_exit_group(struct pt_regs reg)
 	del_pid(current->pid);
 	spin_unlock(&my_table_lock);
 	orig_exit_group(reg);
+	return 0;
 }
 //----------------------------------------------------------------
 
@@ -541,7 +542,7 @@ asmlinkage long my_syscall(int cmd, int syscall, int pid) {
 				if (add_pid_sysc(pid, syscall) != 0){
 					return -ENOMEM;
 				}
-				table[syscall].monitored == 1;
+				table[syscall].monitored = 1;
 			
 			// or delete pid from a blacklist
 			}else{
@@ -553,7 +554,7 @@ asmlinkage long my_syscall(int cmd, int syscall, int pid) {
 		// start monitoring all syscall
 		}else if(pid == 0){
 			destroy_list(syscall);
-			table[syscall].monitored == 2;
+			table[syscall].monitored = 2;
 		}
 		// no need to consider negative pid, since the arguments are already checked
 		return 0;
