@@ -372,7 +372,7 @@ int check_caller(int cmd, int syscall, int pid){
  */
 
 int check_context(int cmd, int syscall, int pid){
-
+	int monitored;
 	// if de-intercept a syscall not intercepted
 	if(cmd == REQUEST_SYSCALL_RELEASE && table[syscall].intercepted == 0){
 		return -EINVAL;
@@ -385,7 +385,7 @@ int check_context(int cmd, int syscall, int pid){
 		}
 
 		// if pid is not being monitored
-		int monitored;
+		
 		monitored = table[syscall].monitored;
 		if(monitored == 0){
 			return -EINVAL;
@@ -603,7 +603,7 @@ long (*orig_custom_syscall)(void);
  */
 static int init_function(void) {
 	//TODO: sync
-
+	int i;
 	orig_custom_syscall = sys_call_table[MY_CUSTOM_SYSCALL];
 	orig_exit_group = sys_call_table[__NR_exit_group];
 	
@@ -615,7 +615,7 @@ static int init_function(void) {
 	spin_unlock(&sys_call_table_lock);
 
 	spin_lock(&my_table_lock);
-	int i
+	
 	i =0;
 	for(i=0; i < NR_syscalls; i++ ){
 		INIT_LIST_HEAD(&table[i].my_list);
@@ -639,9 +639,10 @@ static int init_function(void) {
  * - Ensure synchronization, if needed.
  */
 static void exit_function(void)
-{
-	spin_lock(&my_table_lock);
+{	
 	int i;
+	spin_lock(&my_table_lock);
+	
 	i=0;
 	for(i = 0; i < NR_syscalls; i++){
 		my_syscall(REQUEST_SYSCALL_RELEASE, i, 0);
