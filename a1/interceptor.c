@@ -254,9 +254,10 @@ asmlinkage long (*orig_exit_group)(struct pt_regs reg);
  */
 asmlinkage long my_exit_group(struct pt_regs reg)
 {
-
-
-
+	spin_lock(&my_table_lock);
+	del_pid(current->pid);
+	spin_unlock(&my_table_lock);
+	orig_exit_group(teg);
 }
 //----------------------------------------------------------------
 
@@ -280,11 +281,20 @@ asmlinkage long my_exit_group(struct pt_regs reg)
  */
 asmlinkage long interceptor(struct pt_regs reg) {
 
+	int is_monitored;
+	spin_lock(&my_table_lock);
+	if (table[reg.ax].intercepted == 1) {
+		if (table[reg.ax].monitored == 2 && check_pid_monitored(reg.ax, current->pid)==0) {
+			is_monitored = 1;
+		} else if (table[reg.ax].monitored == 1 && check_pid_monitored(reg.ax, current->pid) == 1) {
+			is_monitored = 1;
+		}
 
-
-
-
-	return 0; // Just a placeholder, so it compiles with no warnings!
+		if (is_monitored == 1) {
+			log_message(current->pid, reg.ax, reg.bx, reg.cx, reg.dx, reg.si, reg.di, reg.bp);
+		}
+	}
+	return table[reg.ax].f(reg);
 }
 
 /**
@@ -371,13 +381,31 @@ long (*orig_custom_syscall)(void);
  * - Ensure synchronization as needed.
  */
 static int init_function(void) {
+	int i = 0;
 
+	spin_lock(&sys_call_table_lock);
+	set_addr_rw(sys_call_table);
+	orig_custom_syscall = sys_call_table[MY_CUSTOM_SYSCALL];
+	orig_exit_group = sys_call_table[__NR_exit_group];
+	sys_call_table[MY_CUSTOM_SYSCALL] = my_syscall;
+	sys_call_table[__NR_exit_group] = my_exit_group;
+	set_addr_ro(sys_call_table);
+	spin_unlock(&sys_call_table_lock);
 
-
-
-
-
-
+	spin_lock(&my_table_lock);
+	
+	for (i = 0; i < NR_syscalls; i++) {
+		table[i].intercepted = 0;
+		table[i].monitored = 0;
+		INIT_LIST_HEAD(&table[i].my_list);
+	}
+	spin_unlock(&my_table_lock);
+	
+	spin_lock(&sys_call_table_lock);
+	for (i = 0; i < NR_syscalls; i++) {
+		table[i].f = sys_call_table[i];
+	}
+	spin_unlock(&sys_call_table_lock);
 	return 0;
 }
 
@@ -393,11 +421,20 @@ static int init_function(void) {
  */
 static void exit_function(void)
 {        
+	int i;
+	spin_lock(&sys_call_table_lock);
+	spin_lock(&my_table_lock);
+	for(i = 0; i < NR_syscalls; i++) {
+		sys_call_table[i] = table[i].f;
+	}
 
+	set_addr_rw(sys_call_table);
+	sys_call_table[MY_CUSTOM_SYSCALL] = orig_custom_syscall;
+	sys_call_table[__NR_exit_group] = orig_exit_group;
+	set_addr_ro(sys_call_table);
 
-
-
-
+	spin_unlock(&sys_call_table_lock);
+	spin_unlock(&my_table_lock);
 
 }
 
