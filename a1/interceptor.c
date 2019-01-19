@@ -300,19 +300,74 @@ asmlinkage long interceptor(struct pt_regs reg) {
 /**
  * Check whether the syscall is valid, return 1 on valid, 0 otherwise
  */  
-static int check_syscall(int sysc);
+static int check_syscall(int sysc) {
+	if (sysc == MY_CUSTOM_SYSCALL || sysc < 0 || sysc < NR_syscalls - 1) {
+		return 0;
+	}
+	return 1;
+}
 
 /**
  * Check whether the caller have correct permission.
  * Return 1 on valid, return 0 otherwise
  */ 
-static int check_permission(int cmd, int sysc, int pid);
+static int check_permission(int cmd, int sysc, int pid) {
+	if (cmd == REQUEST_SYSCALL_INTERCEPT || cmd == REQUEST_SYSCALL_RELEASE) {
+		if (getuid() != 0) {
+			return 0;
+		}
+		return 1;
+	} else {
+		if (pid == 0) {
+			if (getuid() != 0) {
+				return 0;
+			} else {
+				return 1;
+			}
+		} else {
+			if (getuid() == 0) {
+				return 1;
+			}
+			if (check_pids_same_owner(pid, current->pid) != 0) {
+				return 0;
+			}
+			return 1; 
+		}
+	}
+	
+}
 
 /**
  * Check whether the command have the correct context. Return 1 on valid, 
- * return -1 otherwise.
+ * return 0 otherwise.
  */ 
-static int check_context(int cmd, int sysc, int pid);
+static int check_context(int cmd, int sysc, int pid) {
+	int monitored;
+	if (cmd == REQUEST_SYSCALL_INTERCEPT && table[syscall].intercepted == 1) {
+		return 0;
+	}
+	if (cmd == REQUEST_STOP_MONITORING) {
+		monitored = table[syscall].monitored;
+		if (monitored == 2 && check_pid_monitored(syscall, pid) == 1) {
+			return 0;
+		}
+		if (monitored == 1 && check_pid_monitored(syscall, pid) == 0) {
+			return 0;
+		}
+	}
+	//TOCHECK: check repeat intercept?
+	return 1;
+}
+
+/**
+ * Check whether the pid is valid, return 1 on valid, 0 otherwise.
+ */ 
+static int check_pid(int pid) {
+	if (pid_task(find_vpid(pid), PIDTYPE_PID) != NULL) {
+		return 1;
+	}
+	return 0;
+} 
 
 /**
  * My system call - this function is called whenever a user issues a MY_CUSTOM_SYSCALL system call.
@@ -371,6 +426,9 @@ asmlinkage long my_syscall(int cmd, int syscall, int pid) {
 	if (check_syscall(syscall) == 0) {
 		return -EINVAL;
 	}
+	if (check_pid(pid) == 0) {
+		return -EINVAL;
+	}
 	if (check_context(cmd, syscall, pid) == 0) {
 		return -EINVAL;
 	}
@@ -402,7 +460,7 @@ asmlinkage long my_syscall(int cmd, int syscall, int pid) {
 	} else if (cmd == REQUEST_START_MONITORING) {
 		spin_lock(&my_table_lock);
 		table[syscall].intercepted = 1;
-		
+
 		spin_lock(&sys_call_table_lock);
 		set_addr_rw(sys_call_table);
 		sys_call_table[syscall] = interceptor;
