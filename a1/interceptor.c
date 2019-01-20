@@ -257,7 +257,7 @@ asmlinkage long my_exit_group(struct pt_regs reg)
 	spin_lock(&my_table_lock);
 	del_pid(current->pid);
 	spin_unlock(&my_table_lock);
-	orig_exit_group(teg);
+	orig_exit_group(reg);
 }
 //----------------------------------------------------------------
 
@@ -343,15 +343,15 @@ static int check_permission(int cmd, int sysc, int pid) {
  */ 
 static int check_context(int cmd, int sysc, int pid) {
 	int monitored;
-	if (cmd == REQUEST_SYSCALL_INTERCEPT && table[syscall].intercepted == 1) {
+	if (cmd == REQUEST_SYSCALL_INTERCEPT && table[sysc].intercepted == 1) {
 		return 0;
 	}
 	if (cmd == REQUEST_STOP_MONITORING) {
 		monitored = table[syscall].monitored;
-		if (monitored == 2 && check_pid_monitored(syscall, pid) == 1) {
+		if (monitored == 2 && check_pid_monitored(sysc, pid) == 1) {
 			return 0;
 		}
-		if (monitored == 1 && check_pid_monitored(syscall, pid) == 0) {
+		if (monitored == 1 && check_pid_monitored(sys, pid) == 0) {
 			return 0;
 		}
 	}
@@ -443,14 +443,14 @@ asmlinkage long my_syscall(int cmd, int syscall, int pid) {
 		spin_lock(&sys_call_table_lock);
 		set_addr_rw((unsigned long)sys_call_table);
 		sys_call_table[syscall] = interceptor;
-		set_add_ro(sys_call_table);
+		set_addr_ro((unsigned long)sys_call_table);
 		spin_unlock(&my_table_lock);
 		spin_unlock(&sys_call_table_lock);
 	} else if (cmd == REQUEST_SYSCALL_RELEASE) {
 		spin_lock(&my_table_lock);
 		table[syscall].intercepted = 0;
 		table[syscall].monitored = 0;
-		spin_lock(&sys_call_table);
+		spin_lock(&sys_call_table_lock);
 		set_addr_rw((unsigned long)sys_call_table);
 		sys_call_table[syscall] = table[syscall].f;
 		set_addr_ro((unsigned long)sys_call_table);
