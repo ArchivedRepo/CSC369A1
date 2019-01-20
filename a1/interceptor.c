@@ -257,7 +257,7 @@ asmlinkage long my_exit_group(struct pt_regs reg)
 	spin_lock(&my_table_lock);
 	del_pid(current->pid);
 	spin_unlock(&my_table_lock);
-	orig_exit_group(reg);
+	return orig_exit_group(reg);
 }
 //----------------------------------------------------------------
 
