@@ -216,7 +216,7 @@ int main(int argc, char **argv) {
 	do_release(__NR_exit, 0);
 
 	test_syscall(SYS_open);
-	test_syscall(SYS_write);
+	
 	/* The above line of code tests SYS_open.
 	   Feel free to add more tests here for other system calls, 
 	   once you get everything to work; check Linux documentation
