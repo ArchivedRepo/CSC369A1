@@ -294,6 +294,7 @@ asmlinkage long interceptor(struct pt_regs reg) {
 			log_message(current->pid, reg.ax, reg.bx, reg.cx, reg.dx, reg.si, reg.di, reg.bp);
 		}
 	}
+	spin_unlock(&my_table_lock);
 	return table[reg.ax].f(reg);
 }
 
