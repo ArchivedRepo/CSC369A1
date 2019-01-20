@@ -351,7 +351,7 @@ static int check_context(int cmd, int sysc, int pid) {
 		if (monitored == 2 && check_pid_monitored(sysc, pid) == 1) {
 			return 0;
 		}
-		if (monitored == 1 && check_pid_monitored(sys, pid) == 0) {
+		if (monitored == 1 && check_pid_monitored(sysc, pid) == 0) {
 			return 0;
 		}
 	}
