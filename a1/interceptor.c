@@ -313,19 +313,19 @@ static int check_syscall(int sysc) {
  */ 
 static int check_permission(int cmd, int sysc, int pid) {
 	if (cmd == REQUEST_SYSCALL_INTERCEPT || cmd == REQUEST_SYSCALL_RELEASE) {
-		if (getuid() != 0) {
+		if (current_uid() != 0) {
 			return 0;
 		}
 		return 1;
 	} else {
 		if (pid == 0) {
-			if (getuid() != 0) {
+			if (current_uid() != 0) {
 				return 0;
 			} else {
 				return 1;
 			}
 		} else {
-			if (getuid() == 0) {
+			if (current_uid() == 0) {
 				return 1;
 			}
 			if (check_pids_same_owner(pid, current->pid) != 0) {
@@ -347,7 +347,7 @@ static int check_context(int cmd, int sysc, int pid) {
 		return 0;
 	}
 	if (cmd == REQUEST_STOP_MONITORING) {
-		monitored = table[syscall].monitored;
+		monitored = table[sysc].monitored;
 		if (monitored == 2 && check_pid_monitored(sysc, pid) == 1) {
 			return 0;
 		}
