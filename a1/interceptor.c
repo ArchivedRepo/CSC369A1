@@ -441,7 +441,7 @@ asmlinkage long my_syscall(int cmd, int syscall, int pid) {
 		table[syscall].intercepted = 1;
 		table[syscall].monitored = 2;
 		spin_lock(&sys_call_table_lock);
-		set_addr_rw(sys_call_table);
+		set_addr_rw((unsigned long)sys_call_table);
 		sys_call_table[syscall] = interceptor;
 		set_add_ro(sys_call_table);
 		spin_unlock(&my_table_lock);
@@ -451,9 +451,9 @@ asmlinkage long my_syscall(int cmd, int syscall, int pid) {
 		table[syscall].intercepted = 0;
 		table[syscall].monitored = 0;
 		spin_lock(&sys_call_table);
-		set_addr_rw(sys_call_table);
+		set_addr_rw((unsigned long)sys_call_table);
 		sys_call_table[syscall] = table[syscall].f;
-		set_addr_ro(sys_call_table);
+		set_addr_ro((unsigned long)sys_call_table);
 		destroy_list(syscall);
 		spin_unlock(&my_table_lock);
 		spin_unlock(&sys_call_table_lock);
@@ -462,9 +462,9 @@ asmlinkage long my_syscall(int cmd, int syscall, int pid) {
 		table[syscall].intercepted = 1;
 
 		spin_lock(&sys_call_table_lock);
-		set_addr_rw(sys_call_table);
+		set_addr_rw((unsigned long)sys_call_table);
 		sys_call_table[syscall] = interceptor;
-		set_addr_ro(sys_call_table);
+		set_addr_ro((unsigned long)sys_call_table);
 		spin_lock(&sys_call_table_lock);
 
 		if (pid == 0) {
@@ -522,12 +522,12 @@ static int init_function(void) {
 	int i = 0;
 
 	spin_lock(&sys_call_table_lock);
-	set_addr_rw(sys_call_table);
+	set_addr_rw((unsigned long)sys_call_table);
 	orig_custom_syscall = sys_call_table[MY_CUSTOM_SYSCALL];
 	orig_exit_group = sys_call_table[__NR_exit_group];
 	sys_call_table[MY_CUSTOM_SYSCALL] = my_syscall;
 	sys_call_table[__NR_exit_group] = my_exit_group;
-	set_addr_ro(sys_call_table);
+	set_addr_ro((unsigned long)sys_call_table);
 	spin_unlock(&sys_call_table_lock);
 
 	spin_lock(&my_table_lock);
@@ -566,10 +566,10 @@ static void exit_function(void)
 		sys_call_table[i] = table[i].f;
 	}
 
-	set_addr_rw(sys_call_table);
+	set_addr_rw((unsigned long)sys_call_table);
 	sys_call_table[MY_CUSTOM_SYSCALL] = orig_custom_syscall;
 	sys_call_table[__NR_exit_group] = orig_exit_group;
-	set_addr_ro(sys_call_table);
+	set_addr_ro((unsigned long)sys_call_table);
 
 	spin_unlock(&sys_call_table_lock);
 	spin_unlock(&my_table_lock);
