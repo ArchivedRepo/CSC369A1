@@ -301,7 +301,7 @@ asmlinkage long interceptor(struct pt_regs reg) {
  * Check whether the syscall is valid, return 1 on valid, 0 otherwise
  */  
 static int check_syscall(int sysc) {
-	if (sysc == MY_CUSTOM_SYSCALL || sysc < 0 || sysc < NR_syscalls - 1) {
+	if (sysc == MY_CUSTOM_SYSCALL || sysc < 0 || sysc > NR_syscalls - 1) {
 		return 0;
 	}
 	return 1;
@@ -343,11 +343,17 @@ static int check_permission(int cmd, int sysc, int pid) {
  */ 
 static int check_context(int cmd, int sysc, int pid) {
 	int monitored;
-	if (cmd == REQUEST_SYSCALL_INTERCEPT && table[sysc].intercepted == 1) {
+	if (cmd == REQUEST_SYSCALL_RELEASE && table[sysc].intercepted == 0) {
 		return 0;
 	}
 	if (cmd == REQUEST_STOP_MONITORING) {
+		if (table[sysc].intercepted == 0) {
+			return 0;
+		}
 		monitored = table[sysc].monitored;
+		if (monitored == 0) {
+			return 0;
+		}
 		if (monitored == 2 && check_pid_monitored(sysc, pid) == 1) {
 			return 0;
 		}
@@ -355,7 +361,27 @@ static int check_context(int cmd, int sysc, int pid) {
 			return 0;
 		}
 	}
-	//TOCHECK: check repeat intercept?
+	return 1;
+}
+
+/**
+ * Check whether the my_syscall should return -EBUSY
+ * return 1 on normal, return 0 on abnormal;
+ */  
+static int check_busy(int cmd, int sysc, int pid) {
+	int monitored;
+	if (cmd == REQUEST_SYSCALL_INTERCEPT && table[sysc].intercepted == 1) {
+		return 0;
+	}
+	if (cmd == REQUEST_START_MONITORING) {
+		monitored = table[sysc].monitored;
+		if (monitored == 1 && check_pid_monitored(sysc, pid) == 1) {
+			return 0;
+		}
+		if (monitored == 2 && check_pid_monitored(sysc, pid) == 0) {
+			return 0;
+		}
+	}
 	return 1;
 }
 
@@ -429,17 +455,20 @@ asmlinkage long my_syscall(int cmd, int syscall, int pid) {
 	if (check_pid(pid) == 0) {
 		return -EINVAL;
 	}
-	if (check_context(cmd, syscall, pid) == 0) {
-		return -EINVAL;
-	}
 	if (check_permission(cmd, syscall, pid) == 0) {
 		return -EPERM;
 	}
-
+	if (check_context(cmd, syscall, pid) == 0) {
+		return -EINVAL;
+	}
+	if (check_busy(cmd, syscall, pid) == 0) {
+		return -EBUSY;
+	}
+	
 	if (cmd == REQUEST_SYSCALL_INTERCEPT) {
 		spin_lock(&my_table_lock);
 		table[syscall].intercepted = 1;
-		table[syscall].monitored = 2;
+		table[syscall].monitored = 0;
 		spin_lock(&sys_call_table_lock);
 		set_addr_rw((unsigned long)sys_call_table);
 		sys_call_table[syscall] = interceptor;
@@ -449,24 +478,15 @@ asmlinkage long my_syscall(int cmd, int syscall, int pid) {
 	} else if (cmd == REQUEST_SYSCALL_RELEASE) {
 		spin_lock(&my_table_lock);
 		table[syscall].intercepted = 0;
-		table[syscall].monitored = 0;
 		spin_lock(&sys_call_table_lock);
 		set_addr_rw((unsigned long)sys_call_table);
 		sys_call_table[syscall] = table[syscall].f;
 		set_addr_ro((unsigned long)sys_call_table);
-		destroy_list(syscall);
+		// destroy_list(syscall);
 		spin_unlock(&my_table_lock);
 		spin_unlock(&sys_call_table_lock);
 	} else if (cmd == REQUEST_START_MONITORING) {
 		spin_lock(&my_table_lock);
-		table[syscall].intercepted = 1;
-
-		spin_lock(&sys_call_table_lock);
-		set_addr_rw((unsigned long)sys_call_table);
-		sys_call_table[syscall] = interceptor;
-		set_addr_ro((unsigned long)sys_call_table);
-		spin_lock(&sys_call_table_lock);
-
 		if (pid == 0) {
 			destroy_list(syscall);
 			table[syscall].monitored = 2;
@@ -474,7 +494,10 @@ asmlinkage long my_syscall(int cmd, int syscall, int pid) {
 			if (table[syscall].monitored == 2) {
 				// Delete the pid from blacklist;
 				return del_pid_sysc(pid, syscall);
-			} else {
+			} else if (table[syscall].monitored == 1）{
+				return add_pid_sysc(pid, syscall);
+			} else if (table[syscall].monitored == 0) {
+				table[syscall].monitored == 1;
 				return add_pid_sysc(pid, syscall);
 			}
 		}
@@ -484,12 +507,14 @@ asmlinkage long my_syscall(int cmd, int syscall, int pid) {
 		if (pid == 0) {
 			destroy_list(syscall);
 			table[syscall].monitored = 0;
-			table[syscall].intercepted = 0;
 		} else {
 			if (table[syscall].monitored == 2) {
 				return add_pid_sysc(pid, syscall);
-			} else {
+			} else if (table[syscall].monitored == 1) {
 				return del_pid_sysc(pid, syscall);
+			} else if (table[syscall].monitored == 0) {
+				table[syscall].monitored = 1;
+				return add_pid_sysc(pid, syscall);
 			}
 		}
 		spin_unlock(&my_table_lock);
