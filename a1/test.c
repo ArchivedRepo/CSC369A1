@@ -168,9 +168,12 @@ int do_start(int syscall, int pid, int status) {
 }
 
 int do_stop(int syscall, int pid, int status) {
+	int ret;
 	if (pid == -1)
 		pid = getpid();
-	test("%d stop", syscall, vsyscall_arg(MY_CUSTOM_SYSCALL, 3, REQUEST_STOP_MONITORING, syscall, pid) == status);
+		ret = vsyscall_arg(MY_CUSTOM_SYSCALL, 3, REQUEST_STOP_MONITORING, syscall, pid); 
+	test("%d stop", syscall, ret == status);
+	printf("return value=%d status=%d\n", ret,status);
 	return 0;
 }
 
