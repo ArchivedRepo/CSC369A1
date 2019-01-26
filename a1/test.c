@@ -163,7 +163,7 @@ int do_start(int syscall, int pid, int status) {
 		pid = getpid();
 	ret = vsyscall_arg(MY_CUSTOM_SYSCALL, 3, REQUEST_START_MONITORING, syscall, pid);
 	test("%d start", syscall, ret == status);
-	//printf("return value=%d\n", ret);
+	printf("return value=%d status=%d", ret,status);
 	return 0;
 }
 
