@@ -352,6 +352,9 @@ static int check_context(int cmd, int sysc, int pid) {
 		if (table[sysc].intercepted == 0) {
 			return 0;
 		}
+		if (pid == 0) {
+			return 1;
+		}
 		monitored = table[sysc].monitored;
 		if (monitored == 0) {
 			return 0;
