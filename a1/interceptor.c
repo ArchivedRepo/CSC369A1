@@ -483,7 +483,8 @@ asmlinkage long my_syscall(int cmd, int syscall, int pid) {
 		set_addr_rw((unsigned long)sys_call_table);
 		sys_call_table[syscall] = table[syscall].f;
 		set_addr_ro((unsigned long)sys_call_table);
-		// destroy_list(syscall);
+		//Check This?
+		destroy_list(syscall);
 		spin_unlock(&my_table_lock);
 		spin_unlock(&sys_call_table_lock);
 	} else if (cmd == REQUEST_START_MONITORING) {
@@ -597,8 +598,8 @@ static void exit_function(void)
 	sys_call_table[__NR_exit_group] = orig_exit_group;
 	set_addr_ro((unsigned long)sys_call_table);
 
-	spin_unlock(&sys_call_table_lock);
 	spin_unlock(&my_table_lock);
+	spin_unlock(&sys_call_table_lock);
 
 }
 
