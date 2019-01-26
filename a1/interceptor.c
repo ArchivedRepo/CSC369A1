@@ -390,7 +390,7 @@ static int check_busy(int cmd, int sysc, int pid) {
  * Check whether the pid is valid, return 1 on valid, 0 otherwise.
  */ 
 static int check_pid(int pid) {
-	if (pid_task(find_vpid(pid), PIDTYPE_PID) != NULL) {
+	if (pid == 0 || pid_task(find_vpid(pid), PIDTYPE_PID) != NULL) {
 		return 1;
 	}
 	return 0;
