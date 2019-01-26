@@ -60,7 +60,7 @@ void on_quit(int signo, siginfo_t *si, void *ignored) {
 #define subtest(s) puts("SUBTEST: "s)
 
 void clear_log() {
-	system("dmesg -c &> /dev/null");
+	system("dmesg -c > /dev/null");
 }
 
 /**
@@ -426,7 +426,7 @@ void test_PASS(int syscall) {
 
 void test_syscall(int syscall) {
 
-	//clear_log();
+	clear_log();
 	do_intercept(syscall, 0);
 	do_as_guest("./test_full nonroot %d", syscall, 0);
 	do_start(syscall, -2, -EINVAL);

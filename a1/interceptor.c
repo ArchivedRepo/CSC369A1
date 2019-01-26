@@ -282,6 +282,7 @@ asmlinkage long my_exit_group(struct pt_regs reg)
 asmlinkage long interceptor(struct pt_regs reg) {
 
 	int is_monitored;
+	is_monitored = 0;
 	spin_lock(&my_table_lock);
 	if (table[reg.ax].intercepted == 1) {
 		if (table[reg.ax].monitored == 2 && check_pid_monitored(reg.ax, current->pid)==0) {
