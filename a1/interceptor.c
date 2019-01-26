@@ -355,10 +355,15 @@ static int check_context(int cmd, int sysc, int pid) {
 		if (table[sysc].intercepted == 0) {
 			return 0;
 		}
+		monitored = table[sysc].monitored;
+		//TODO: check the logic here!
 		if (pid == 0) {
+			if （monitored == 0) {
+				return 0;
+			}
 			return 1;
 		}
-		monitored = table[sysc].monitored;
+		
 		if (monitored == 0) {
 			return 0;
 		}
@@ -382,11 +387,15 @@ static int check_busy(int cmd, int sysc, int pid) {
 		return 0;
 	}
 	if (cmd == REQUEST_START_MONITORING) {
-		//TODO: Check the logic here;
+		//TODO: Check the logic here!
+		monitored = table[sysc].monitored;
 		if (pid == 0) {
+			if (monitored == 2 && table[sysc].listcount == 0) {
+				return 0;
+			}
 			return 1;
 		}
-		monitored = table[sysc].monitored;
+		
 		if (monitored == 1 && check_pid_monitored(sysc, pid) == 1) {
 			return 0;
 		}
