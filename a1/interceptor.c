@@ -348,6 +348,9 @@ static int check_context(int cmd, int sysc, int pid) {
 	if (cmd == REQUEST_SYSCALL_RELEASE && table[sysc].intercepted == 0) {
 		return 0;
 	}
+	if (cmd == REQUEST_START_MONITORING && table[sysc].intercepted == 0) {
+		return 0;
+	}
 	if (cmd == REQUEST_STOP_MONITORING) {
 		if (table[sysc].intercepted == 0) {
 			return 0;
