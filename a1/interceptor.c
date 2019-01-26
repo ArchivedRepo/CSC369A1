@@ -565,12 +565,13 @@ static int init_function(void) {
 		table[i].monitored = 0;
 		INIT_LIST_HEAD(&table[i].my_list);
 	}
-	spin_unlock(&my_table_lock);
+	
 	
 	spin_lock(&sys_call_table_lock);
 	for (i = 0; i < NR_syscalls; i++) {
 		table[i].f = sys_call_table[i];
 	}
+	spin_unlock(&my_table_lock);
 	spin_unlock(&sys_call_table_lock);
 	return 0;
 }
