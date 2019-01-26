@@ -358,7 +358,7 @@ static int check_context(int cmd, int sysc, int pid) {
 		monitored = table[sysc].monitored;
 		//TODO: check the logic here!
 		if (pid == 0) {
-			if（monitored == 0) {
+			if (monitored == 0) {
 				return 0;
 			}
 			return 1;
