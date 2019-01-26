@@ -470,22 +470,23 @@ asmlinkage long my_syscall(int cmd, int syscall, int pid) {
 		spin_lock(&my_table_lock);
 		table[syscall].intercepted = 1;
 		table[syscall].monitored = 0;
+		spin_unlock(&my_table_lock);
+
 		spin_lock(&sys_call_table_lock);
 		set_addr_rw((unsigned long)sys_call_table);
 		sys_call_table[syscall] = interceptor;
 		set_addr_ro((unsigned long)sys_call_table);
-		spin_unlock(&my_table_lock);
 		spin_unlock(&sys_call_table_lock);
 	} else if (cmd == REQUEST_SYSCALL_RELEASE) {
 		spin_lock(&my_table_lock);
 		table[syscall].intercepted = 0;
+		destroy_list(syscall);
+		spin_unlock(&my_table_lock);
+
 		spin_lock(&sys_call_table_lock);
 		set_addr_rw((unsigned long)sys_call_table);
 		sys_call_table[syscall] = table[syscall].f;
 		set_addr_ro((unsigned long)sys_call_table);
-		//Check This?
-		destroy_list(syscall);
-		spin_unlock(&my_table_lock);
 		spin_unlock(&sys_call_table_lock);
 	} else if (cmd == REQUEST_START_MONITORING) {
 		spin_lock(&my_table_lock);
@@ -589,15 +590,13 @@ static void exit_function(void)
 	int i;
 	spin_lock(&sys_call_table_lock);
 	spin_lock(&my_table_lock);
+	set_addr_rw((unsigned long)sys_call_table);
 	for(i = 0; i < NR_syscalls; i++) {
 		sys_call_table[i] = table[i].f;
 	}
-
-	set_addr_rw((unsigned long)sys_call_table);
 	sys_call_table[MY_CUSTOM_SYSCALL] = orig_custom_syscall;
 	sys_call_table[__NR_exit_group] = orig_exit_group;
 	set_addr_ro((unsigned long)sys_call_table);
-
 	spin_unlock(&my_table_lock);
 	spin_unlock(&sys_call_table_lock);
 
