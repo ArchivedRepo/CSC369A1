@@ -376,6 +376,10 @@ static int check_busy(int cmd, int sysc, int pid) {
 		return 0;
 	}
 	if (cmd == REQUEST_START_MONITORING) {
+		//TODO: Check the logic here;
+		if (pid == 0) {
+			return 1;
+		}
 		monitored = table[sysc].monitored;
 		if (monitored == 1 && check_pid_monitored(sysc, pid) == 1) {
 			return 0;
