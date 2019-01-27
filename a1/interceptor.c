@@ -370,7 +370,7 @@ static int check_context(int cmd, int sysc, int pid) {
 		if(monitored == 0){
 			return 1;
 		}
-		}else{
+		else{
 			if(pid != 0){
 				// not in monitored list
 				if(monitored == 1 && check_pid_monitored(sysc, pid) == 0){
@@ -382,6 +382,7 @@ static int check_context(int cmd, int sysc, int pid) {
 				}
 			}
 		}
+	}
 	return 0;
 }
 
