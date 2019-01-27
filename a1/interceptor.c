@@ -380,6 +380,10 @@ static int check_context(int cmd, int sysc, int pid) {
 				if(monitored == 2 && check_pid_monitored(sysc, pid) == 1) {
 					return 1;
 				}
+			} else {
+				if (monitored == 0) {
+					return 1;
+				}
 			}
 		}
 	return 0;
