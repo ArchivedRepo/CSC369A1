@@ -353,7 +353,6 @@ static int check_permission(int cmd, int sysc, int pid) {
 /**
  * Check whether the command have the correct context. Return 0 on valid, 
  * return 1 otherwise.
-Cannot 
  */ 
 static int check_context(int cmd, int sysc, int pid) {
 	int monitored;
