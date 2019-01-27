@@ -360,7 +360,7 @@ static int check_context(int cmd, int sysc, int pid) {
 	//check whether de-intercept, start/stop monitoring a system call not intercepted yet
 	if (cmd == REQUEST_SYSCALL_RELEASE || cmd == REQUEST_START_MONITORING || cmd == REQUEST_STOP_MONITORING){
 		if(table[sysc].intercepted == 0){
-		return 1;
+		    return 1;
 	}
 
 	// check whether stop monitoring for a pid that is not being monitored
