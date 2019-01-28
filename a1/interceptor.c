@@ -619,6 +619,7 @@ static void exit_function(void)
 	spin_lock(&my_table_lock);
 	for(i = 0; i < NR_syscalls; i++) {
 		sys_call_table[i] = table[i].f;
+		destroy_list(i);
 	}
 	spin_unlock(&my_table_lock);
 	
