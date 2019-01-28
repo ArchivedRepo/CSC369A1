@@ -491,7 +491,6 @@ asmlinkage long my_syscall(int cmd, int syscall, int pid) {
 	}
 	
 	if (cmd == REQUEST_SYSCALL_INTERCEPT) {
-		// spin_lock(&my_table_lock);
 		table[syscall].intercepted = 1;
 		table[syscall].monitored = 0;
 		spin_unlock(&my_table_lock);
@@ -502,7 +501,6 @@ asmlinkage long my_syscall(int cmd, int syscall, int pid) {
 		set_addr_ro((unsigned long)sys_call_table);
 		spin_unlock(&sys_call_table_lock);
 	} else if (cmd == REQUEST_SYSCALL_RELEASE) {
-		// spin_lock(&my_table_lock);
 		table[syscall].intercepted = 0;
 		destroy_list(syscall);
 		spin_unlock(&my_table_lock);
@@ -513,7 +511,6 @@ asmlinkage long my_syscall(int cmd, int syscall, int pid) {
 		set_addr_ro((unsigned long)sys_call_table);
 		spin_unlock(&sys_call_table_lock);
 	} else if (cmd == REQUEST_START_MONITORING) {
-		// spin_lock(&my_table_lock);
 		if (pid == 0) {
 			destroy_list(syscall);
 			table[syscall].monitored = 2;
@@ -530,7 +527,6 @@ asmlinkage long my_syscall(int cmd, int syscall, int pid) {
 		}
 		spin_unlock(&my_table_lock);
 	} else if (cmd == REQUEST_STOP_MONITORING) {
-		// spin_lock(&my_table_lock);
 		if (pid == 0) {
 			destroy_list(syscall);
 			table[syscall].monitored = 0;
