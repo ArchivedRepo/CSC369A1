@@ -282,6 +282,7 @@ asmlinkage long interceptor(struct pt_regs reg) {
 
 	int is_monitored;
 	is_monitored = 0;
+	// check if the syscall is being monitored and log a message
 	spin_lock(&my_table_lock);
 	if (table[reg.ax].intercepted == 1) {
 		if (table[reg.ax].monitored == 2 && check_pid_monitored(reg.ax, current->pid)==0) {
@@ -295,6 +296,7 @@ asmlinkage long interceptor(struct pt_regs reg) {
 		}
 	}
 	spin_unlock(&my_table_lock);
+	// call the original syscall
 	return table[reg.ax].f(reg);
 }
 
@@ -473,14 +475,22 @@ asmlinkage long my_syscall(int cmd, int syscall, int pid) {
 	if (check_syscall(syscall) == 1) {
 		return -EINVAL;
 	}
+
+	spin_lock(&my_table_lock);
+	
+	// include check_pid in critical section to avoid exit_group function 
+	// being called between this check and adding an exiting function to table
 	if (check_pid(pid) == 1) {
+		spin_unlock(&my_table_lock);
 		return -EINVAL;
 	}
 	if (check_permission(cmd, syscall, pid) == 1) {
+		spin_unlock(&my_table_lock);
 		return -EPERM;
 	}
-
-	spin_lock(&my_table_lock);
+	
+	// include check_context and check_busy since they need to look up 
+	// table which may be modified
 	if (check_context(cmd, syscall, pid) == 1) {
 		spin_unlock(&my_table_lock);
 		return -EINVAL;
@@ -493,57 +503,70 @@ asmlinkage long my_syscall(int cmd, int syscall, int pid) {
 	if (cmd == REQUEST_SYSCALL_INTERCEPT) {
 		table[syscall].intercepted = 1;
 		table[syscall].monitored = 0;
-		spin_unlock(&my_table_lock);
 
+		// include this in my_table critical section to
+		// ensure syscall is really intercepted
 		spin_lock(&sys_call_table_lock);
 		set_addr_rw((unsigned long)sys_call_table);
 		sys_call_table[syscall] = interceptor;
 		set_addr_ro((unsigned long)sys_call_table);
 		spin_unlock(&sys_call_table_lock);
+		
+		spin_unlock(&my_table_lock);
+
 	} else if (cmd == REQUEST_SYSCALL_RELEASE) {
 		table[syscall].intercepted = 0;
 		destroy_list(syscall);
-		spin_unlock(&my_table_lock);
-
+		
+		// include this in my_table critical section to
+		// ensure syscall is really de-intercepted
 		spin_lock(&sys_call_table_lock);
 		set_addr_rw((unsigned long)sys_call_table);
 		sys_call_table[syscall] = table[syscall].f;
 		set_addr_ro((unsigned long)sys_call_table);
 		spin_unlock(&sys_call_table_lock);
+		
+		spin_unlock(&my_table_lock);
+
 	} else if (cmd == REQUEST_START_MONITORING) {
 		if (pid == 0) {
 			destroy_list(syscall);
 			table[syscall].monitored = 2;
 		} else {
+			// Delete the pid from blacklist if monitoring all
 			if (table[syscall].monitored == 2) {
-				// Delete the pid from blacklist;
 				del_pid_sysc(pid, syscall);
+
+			// add to whitelist otherwise
 			} else if (table[syscall].monitored == 1) {
-				add_pid_sysc(pid, syscall);
+				if(add_pid_sysc(pid, syscall) != 0){
+					spin_unlock(&my_table_lock);
+					return -ENOMEM;
+				}
 			} else if (table[syscall].monitored == 0) {
 				table[syscall].monitored = 1;
-				add_pid_sysc(pid, syscall);
+				if(add_pid_sysc(pid, syscall) != 0){
+					spin_unlock(&my_table_lock);
+					return -ENOMEM;
+				}
 			}
 		}
 		spin_unlock(&my_table_lock);
+
 	} else if (cmd == REQUEST_STOP_MONITORING) {
 		if (pid == 0) {
 			destroy_list(syscall);
 			table[syscall].monitored = 0;
 		} else {
 			if (table[syscall].monitored == 2) {
+				// add the pid to blacklist if monitoring all pids
 				if(add_pid_sysc(pid, syscall)!= 0){
 					spin_unlock(&my_table_lock);
 					return -ENOMEM;
 				}
+			// delete the pid from whitelist if monitoring some pids
 			} else if (table[syscall].monitored == 1) {
 				del_pid_sysc(pid, syscall);
-			} else if (table[syscall].monitored == 0) {
-				table[syscall].monitored = 1;
-				if(add_pid_sysc(pid, syscall)!=0){
-					spin_unlock(&my_table_lock);
-					return -ENOMEM;
-				}
 			}
 		}
 		spin_unlock(&my_table_lock);
